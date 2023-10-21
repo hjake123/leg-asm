@@ -8,9 +8,9 @@ Specification date: 10/21/2023
 '''
 import argparse
 
-def find_labels(lines: list) -> dict:
+def find_labels_and_consts(lines: list) -> dict:
     '''
-    Create a dictionary of label names to their byte position.
+    Create a dictionary of label and const names to their byte position and value respectively.
     Assumes that the start of the program is at byte 0 and each instruction is 4 bytes.
     '''
     labels = {}
@@ -22,6 +22,12 @@ def find_labels(lines: list) -> dict:
         if tokens[0] == 'LABEL':
             labels.update({tokens[1].upper(): byteindex})
             continue
+        if tokens[0] == 'CONST':
+            if not tokens[2].isdigit():
+                print("Invalid const value ", tokens[2])
+                exit(1)
+            labels.update({tokens[1].upper(): int(tokens[2])})
+            continue
         byteindex += 4
     return labels
 
@@ -31,9 +37,9 @@ def assemble_line(line: str, labels: dict) -> str:
     Utilizes an already created list of label positions.
     '''
     opcode = 0
-    arg0 = "0"
-    arg1 = "0"
-    arg2 = "0"
+    arg0 = 0
+    arg1 = 0
+    arg2 = 0
     mode = 'invalid'
     tokens = line.upper().split()  
     if len(tokens) == 0:
@@ -104,24 +110,26 @@ def assemble_line(line: str, labels: dict) -> str:
             return ""
         case 'LABEL':                
             return ""
+        case 'CONST':                
+            return ""
     # Now that we've matched the token to its basic instruction,
     # we can read future lines
     match mode:
         case 'noargs':
             pass
         case 'alu':
-            arg0 = get_reg_arg(tokens[1])
+            arg0 = get_num_arg(tokens[1], labels)
             if is_imm(tokens[1]):
                 opcode |= 128
-            arg1 = get_reg_arg(tokens[2])
+            arg1 = get_num_arg(tokens[2], labels)
             if is_imm(tokens[2]):
                 opcode |= 64
-            arg2 = get_reg_arg(tokens[3])
+            arg2 = get_num_arg(tokens[3], labels)
         case 'compare':
-            arg0 = get_reg_arg(tokens[1])
+            arg0 = get_num_arg(tokens[1], labels)
             if is_imm(tokens[1]):
                 opcode |= 128
-            arg1 = get_reg_arg(tokens[2])
+            arg1 = get_num_arg(tokens[2], labels)
             if is_imm(tokens[2]):
                 opcode |= 64
             if not tokens[3] in labels:
@@ -134,16 +142,16 @@ def assemble_line(line: str, labels: dict) -> str:
                 exit(1)
             arg2 = labels[tokens[1]]
         case 'save':
-            arg0 = get_reg_arg(tokens[1])
+            arg0 = get_num_arg(tokens[1], labels)
             if is_imm(tokens[1]):
                 opcode |= 128
         case 'load':
-            arg2 = get_reg_arg(tokens[1])
+            arg2 = get_num_arg(tokens[1], labels)
         case 'move':
-            arg0 = get_reg_arg(tokens[1])
+            arg0 = get_num_arg(tokens[1], labels)
             if is_imm(tokens[1]):
                 opcode |= 128
-            arg2 = get_reg_arg(tokens[2])
+            arg2 = get_num_arg(tokens[2], labels)
             opcode |= 64
         case default:
             print('Invalid instruction', tokens[0])
@@ -157,9 +165,11 @@ regs = {'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'ADDR': 5, 'PC': 6
 def is_imm(token) -> int:
     return not token in regs
 
-def get_reg_arg(token) -> int:
+def get_num_arg(token, labels) -> int:
     if token in regs:
         return regs[token]
+    elif token in labels:
+        return labels[token]
     elif token.isdigit():
         return token
     else:
@@ -175,7 +185,7 @@ args = vars(parser.parse_args())
 with open(args['in']) as infile:
     with open(args['out'], mode='w') as outfile:
         print("# Assembled with legasm.py", file=outfile)
-        labels = find_labels(infile.readlines())
+        labels = find_labels_and_consts(infile.readlines())
         infile.seek(0)
         for line in infile:
             code = assemble_line(line, labels)
