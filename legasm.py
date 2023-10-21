@@ -20,19 +20,27 @@ def find_labels_and_consts(lines: list) -> dict:
         if len(tokens) == 0 or tokens[0] == '#':
             continue
         if tokens[0] == 'LABEL':
-            labels.update({tokens[1].upper(): byteindex})
+            labels.update({tokens[1]: byteindex})
             continue
         if tokens[0] == 'CONST':
-            if tokens[2].isdigit():
-                labels.update({tokens[1].upper(): int(tokens[2])})
-            elif tokens[2][0] == "'":
-                labels.update({tokens[1].upper(): ord(tokens[2][1])})
-            else:
+            try:
+                val = int(tokens[2], base=0)
+                labels.update({tokens[1]: val})
+            except ValueError:
                 print("Invalid const", tokens[2])
                 exit(1)
             continue
         byteindex += 4
     return labels
+
+def transcribe_string(line: str) -> str:
+    '''
+    Write the line as a string of bytes by interpreting each character as ASCII.
+    '''
+    output = []
+    for c in line:
+        output.append(str(ord(c)))
+    return " ".join(output)
 
 def assemble_line(line: str, labels: dict) -> str:
     '''
@@ -48,7 +56,7 @@ def assemble_line(line: str, labels: dict) -> str:
     if len(tokens) == 0:
         return ''
     if tokens[0][0] == '"':
-        return line.strip()
+        return transcribe_string(line.strip().strip('"'))
     match tokens[0]:
         case 'ADD':
             # opcode = 0
@@ -191,11 +199,12 @@ def is_imm(token) -> int:
 def get_num_arg(token, labels) -> int:
     if token in regs:
         return regs[token]
-    elif token in labels:
+    if token in labels:
         return labels[token]
-    elif token.isdigit():
-        return token
-    else:
+    try:
+        val = int(token, base=0)
+        return val
+    except ValueError:
         print('Invalid argument', token)
         exit(1)
 

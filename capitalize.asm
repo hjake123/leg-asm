@@ -1,5 +1,5 @@
-const upper_factor 32
-const space 32
+const upper_factor 0x20
+const space 0x20
 
 label loop
 MOV io r0
