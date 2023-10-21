@@ -148,6 +148,7 @@ def get_reg_arg(token) -> int:
 parser = argparse.ArgumentParser("legasm.py")
 parser.add_argument('in', help="LEG ASM file to be assembled")
 parser.add_argument('-o', '--out', type=str, help="filename to be produced, defaults to 'leg.out'", default='leg.out')
+parser.add_argument('-a', '--append', action='store_true', help="append the original program in comments")
 args = vars(parser.parse_args())
 
 with open(args['in']) as infile:
@@ -157,10 +158,11 @@ with open(args['in']) as infile:
             code = assemble_line(line)
             if not code == '':
                 print(code, file=outfile)
-        infile.seek(0)
-        print(file=outfile)
-        print("# Original:", file=outfile)
-        for line in infile:
-            if line.strip() == '':
-                continue
-            print('#', line, end='', file=outfile)
+        if args['append']:
+            infile.seek(0)
+            print(file=outfile)
+            print("# Original:", file=outfile)
+            for line in infile:
+                if line.strip() == '':
+                    continue
+                print('#', line, end='', file=outfile)
