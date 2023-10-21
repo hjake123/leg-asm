@@ -87,6 +87,12 @@ def assemble_line(line: str, labels: dict) -> str:
         case 'RROT':
             opcode = 11
             mode = 'alu'
+        case 'DIV':
+            opcode = 12
+            mode = 'alu'
+        case 'MOD':
+            opcode = 13
+            mode = 'alu'
         case 'BE':
             opcode = 0b100000
             mode = 'compare'
