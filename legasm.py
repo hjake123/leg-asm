@@ -2,18 +2,33 @@
 An assembler for my Turing Complete game's LEG architecture.
 This was made because the in-game assembler is kinda annoying to work with.
 
-Labels will be one of the few things not modified by the assembler, so it's not really a full 'assembler'
-but it's not a transpiler (transsembler?) either.
-
-Programs will be output in line broken decimal for the most part.
+Programs will be output in line broken decimal machine code.
 
 Specification date: 10/21/2023
 '''
 import argparse
 
-def assemble_line(line: str) -> str:
+def find_labels(lines: list) -> dict:
+    '''
+    Create a dictionary of label names to their byte position.
+    Assumes that the start of the program is at byte 0 and each instruction is 4 bytes.
+    '''
+    labels = {}
+    byteindex = 0
+    for line in lines:
+        tokens = line.upper().split()
+        if len(tokens) == 0 or tokens[0] == '#':
+            continue
+        if tokens[0] == 'LABEL':
+            labels.update({tokens[1].upper(): byteindex})
+            continue
+        byteindex += 4
+    return labels
+
+def assemble_line(line: str, labels: dict) -> str:
     '''
     Assemble the line of decimal code needed to execute this line.
+    Utilizes an already created list of label positions.
     '''
     opcode = 0
     arg0 = "0"
@@ -87,8 +102,8 @@ def assemble_line(line: str) -> str:
             mode = 'move'   
         case '#':
             return ""
-        case 'LABEL':
-            return "label " + tokens[1]
+        case 'LABEL':                
+            return ""
     # Now that we've matched the token to its basic instruction,
     # we can read future lines
     match mode:
@@ -109,9 +124,15 @@ def assemble_line(line: str) -> str:
             arg1 = get_reg_arg(tokens[2])
             if is_imm(tokens[2]):
                 opcode |= 64
-            arg2 = tokens[3]
+            if not tokens[3] in labels:
+                print("Invalid label", tokens[3])
+                exit(1)
+            arg2 = labels[tokens[3]]
         case 'call':
-            arg2 = tokens[1]
+            if not tokens[1] in labels:
+                print("Invalid label", tokens[1])
+                exit(1)
+            arg2 = labels[tokens[1]]
         case 'save':
             arg0 = get_reg_arg(tokens[1])
             if is_imm(tokens[1]):
@@ -129,7 +150,7 @@ def assemble_line(line: str) -> str:
             exit(1)
     
     # Finally, output the line of Nearly Byte Code.
-    return str(opcode) + ' ' + arg0 + ' ' + arg1 + ' ' + arg2
+    return str(opcode) + ' ' + str(arg0) + ' ' + str(arg1) + ' ' + str(arg2)
     
 regs = {'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'ADDR': 5, 'PC': 6, 'IO': 7}
 
@@ -138,7 +159,7 @@ def is_imm(token) -> int:
 
 def get_reg_arg(token) -> int:
     if token in regs:
-        return str(regs[token])
+        return regs[token]
     elif token.isdigit():
         return token
     else:
@@ -154,8 +175,10 @@ args = vars(parser.parse_args())
 with open(args['in']) as infile:
     with open(args['out'], mode='w') as outfile:
         print("# Assembled with legasm.py", file=outfile)
+        labels = find_labels(infile.readlines())
+        infile.seek(0)
         for line in infile:
-            code = assemble_line(line)
+            code = assemble_line(line, labels)
             if not code == '':
                 print(code, file=outfile)
         if args['append']:
