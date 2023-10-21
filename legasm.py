@@ -23,10 +23,13 @@ def find_labels_and_consts(lines: list) -> dict:
             labels.update({tokens[1].upper(): byteindex})
             continue
         if tokens[0] == 'CONST':
-            if not tokens[2].isdigit():
-                print("Invalid const value ", tokens[2])
+            if tokens[2].isdigit():
+                labels.update({tokens[1].upper(): int(tokens[2])})
+            elif tokens[2][0] == "'":
+                labels.update({tokens[1].upper(): ord(tokens[2][1])})
+            else:
+                print("Invalid const", tokens[2])
                 exit(1)
-            labels.update({tokens[1].upper(): int(tokens[2])})
             continue
         byteindex += 4
     return labels
@@ -44,6 +47,8 @@ def assemble_line(line: str, labels: dict) -> str:
     tokens = line.upper().split()  
     if len(tokens) == 0:
         return ''
+    if tokens[0][0] == '"':
+        return line.strip()
     match tokens[0]:
         case 'ADD':
             # opcode = 0
@@ -69,6 +74,18 @@ def assemble_line(line: str, labels: dict) -> str:
             mode = 'alu'
         case 'MULTL':
             opcode = 7
+            mode = 'alu'
+        case 'LSHIFT':
+            opcode = 8
+            mode = 'alu'
+        case 'RSHIFT':
+            opcode = 9
+            mode = 'alu'
+        case 'LROT':
+            opcode = 10
+            mode = 'alu'
+        case 'RROT':
+            opcode = 11
             mode = 'alu'
         case 'BE':
             opcode = 0b100000
@@ -145,6 +162,7 @@ def assemble_line(line: str, labels: dict) -> str:
             arg0 = get_num_arg(tokens[1], labels)
             if is_imm(tokens[1]):
                 opcode |= 128
+            opcode |= 64
         case 'load':
             arg2 = get_num_arg(tokens[1], labels)
         case 'move':
@@ -157,7 +175,6 @@ def assemble_line(line: str, labels: dict) -> str:
             print('Invalid instruction', tokens[0])
             exit(1)
     
-    # Finally, output the line of Nearly Byte Code.
     return str(opcode) + ' ' + str(arg0) + ' ' + str(arg1) + ' ' + str(arg2)
     
 regs = {'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'ADDR': 5, 'PC': 6, 'IO': 7}
