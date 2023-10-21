@@ -42,6 +42,16 @@ def transcribe_string(line: str) -> str:
         output.append(str(ord(c)))
     return " ".join(output)
 
+def transcribe_data(line: str) -> str:
+    '''
+    Write the line as an array of comma-seperated numbers.
+    '''
+    output = []
+    for num in line.split(','):
+        output.append(str(int(num, base=0)))
+    return " ".join(output)
+
+
 def assemble_line(line: str, labels: dict) -> str:
     '''
     Assemble the line of decimal code needed to execute this line.
@@ -57,6 +67,8 @@ def assemble_line(line: str, labels: dict) -> str:
         return ''
     if tokens[0][0] == '"':
         return transcribe_string(line.strip().strip('"'))
+    if tokens[0][0] == '[':
+        return transcribe_data(line.strip().strip('[').strip(']'))
     match tokens[0]:
         case 'ADD':
             # opcode = 0
