@@ -237,12 +237,8 @@ with open(args['in']) as infile:
         for line in infile:
             code = assemble_line(line, labels)
             if not code == '':
-                print(code, file=outfile)
-        if args['append']:
-            infile.seek(0)
-            print(file=outfile)
-            print("# Original:", file=outfile)
-            for line in infile:
-                if line.strip() == '':
-                    continue
-                print('#', line, end='', file=outfile)
+                print(code, file=outfile, end='')
+                if args['append']:
+                    print(" #", line.strip(), file=outfile)
+                else:
+                    print(file=outfile)
