@@ -107,10 +107,10 @@ def assemble_line(line: str, labels: dict) -> str:
         case 'RROT':
             opcode = 11
             mode = 'alu'
-        case 'DIV':
+        case 'MOD':
             opcode = 12
             mode = 'alu'
-        case 'MOD':
+        case 'DIV':
             opcode = 13
             mode = 'alu'
         case 'BE':
@@ -145,7 +145,10 @@ def assemble_line(line: str, labels: dict) -> str:
             mode = 'save'    
         case 'LOAD':
             opcode = 0b11000
-            mode = 'load'   
+            mode = 'load'  
+        case 'PROM':
+            opcode = 0b11001
+            mode = 'load'  
         case 'MOV':
             opcode = 3
             mode = 'move'   
