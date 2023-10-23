@@ -152,6 +152,9 @@ def assemble_line(line: str, labels: dict) -> str:
         case 'MOV':
             opcode = 3
             mode = 'move'   
+        case 'HALT':
+            opcode = 0xFF
+            mode = 'noargs' 
         case '#':
             return ""
         case 'LABEL':                
