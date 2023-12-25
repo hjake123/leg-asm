@@ -4,7 +4,7 @@ This was made because the in-game assembler is kinda annoying to work with.
 
 Programs will be output in line broken decimal machine code.
 
-Specification date: 10/21/2023
+Specification date: 12/24/2023
 '''
 import argparse
 
@@ -70,17 +70,17 @@ def assemble_line(line: str, labels: dict) -> str:
     if tokens[0][0] == '[':
         return transcribe_data(line.strip().strip('[').strip(']'))
     match tokens[0]:
-        case 'ADD':
+        case 'OR':
             # opcode = 0
             mode = 'alu'
             pass
-        case 'SUB':
+        case 'AND':
             opcode = 1
             mode = 'alu'
-        case 'AND':
+        case 'ADD':
             opcode = 2
             mode = 'alu'
-        case 'OR':
+        case 'SUB':
             opcode = 3
             mode = 'alu'
         case 'NOT':
@@ -150,7 +150,7 @@ def assemble_line(line: str, labels: dict) -> str:
             opcode = 0b11001
             mode = 'load'  
         case 'MOV':
-            opcode = 3
+            opcode = 0
             mode = 'move'   
         case 'HALT':
             opcode = 0xFF
@@ -209,7 +209,7 @@ def assemble_line(line: str, labels: dict) -> str:
     
     return str(opcode) + ' ' + str(arg0) + ' ' + str(arg1) + ' ' + str(arg2)
     
-regs = {'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'ADDR': 5, 'PC': 6, 'IO': 7}
+regs = {'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'ADDR': 5, 'PC': 6, 'IO': 7}
 
 def is_imm(token) -> int:
     return not token in regs
