@@ -15,15 +15,22 @@ def matches(num: int, pattern: int) -> bool:
     '''
     return num & pattern == pattern
 
-def read_register_or_io(index: int, registers: list, text_mode: bool):
+def read_register_or_io(index: int, registers: list, text_mode: bool, infile = None):
     '''
     Read from the register or query the user for input if it is register 7.
-    If it returns None, the user has typed 'exit' and the program should halt.
+    If it returns None, the user has typed 'pause' and the program should pause.
     '''
     if index == 7:
         while True:
-            print("INPUT :", end=" ")            
-            i = input()
+            if infile == None:
+                print("INPUT :", end=" ")            
+                i = input()
+            else:
+                i = infile.read(1)
+                if len(i) == 0:
+                    print('Finished consuming input file')
+                    infile = None
+                    return None
             if i == 'pause':
                 return None
             if text_mode:
@@ -77,7 +84,7 @@ def alu(left: int, right: int, opcode: int) -> int:
             return left / right
     return left
 
-def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dict) -> bool:
+def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dict, infile, outfile) -> bool:
     '''
     Simulate one cycle of execution.
 
@@ -129,12 +136,12 @@ def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dic
     elif loading and len(ram) > registers[5]:
         left = ram[registers[5]]
     elif not loading and not prom_loading:
-        left = read_register_or_io(arg1, registers, simulator_args['text_mode'])
+        left = read_register_or_io(arg1, registers, simulator_args['text_mode'], infile)
     
     if imm_right:
         right = arg2
     elif not loading and not prom_loading:
-        right = read_register_or_io(arg2, registers, simulator_args['text_mode'])
+        right = read_register_or_io(arg2, registers, simulator_args['text_mode'], infile)
 
     if left == None or right == None:
         return False
@@ -146,9 +153,9 @@ def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dic
         if arg3 == 7:
             if simulator_args['text_mode']:
                 encoded = bytes([output])
-                print(encoded.decode('cp850'), end=' ')
+                print(encoded.decode('cp850'), end='', file=output_destination)
             else:
-                print(output)
+                print(output, file=output_destination)
         else:
             registers[arg3] = output
         if arg3 == 6:
@@ -240,23 +247,34 @@ def memedit(ram: list, text_mode: bool):
 
     
 parser = argparse.ArgumentParser("legsim.py")
-parser.add_argument('in', help="LEG text file to be run")
+parser.add_argument('program', help="LEG text file to be run")
 parser.add_argument('-t', '--text_mode', action='store_true', help="Treat output and RAM as characters")
+parser.add_argument('-i', '--input', type=str, help="get IO input from a file", default='')
+parser.add_argument('-o', '--output', type=str, help="send IO output to a file", default='')
 args = vars(parser.parse_args())
 step_mode = True
-print("Simulating", args['in'], end = ' ')
+print("Simulating", args['program'], end = ' ')
 if(args['text_mode']):
     print('using text mode')
 else:
     print('using int mode')
-print("Type 'help' for commands")
 prom = []
-with open(args['in']) as infile:
+with open(args['program']) as infile:
     for line in infile:
         prom.extend(parse_line(line)) 
 registers = [0, 0, 0, 0, 0, 0, 0]
 ram = []
 stack = []
+input_source = None
+output_destination = None
+if len(args['input']) > 0:
+    input_source = open(args['input'])
+    print('Opened input source', args['input'])
+if len(args['output']) > 0:
+    output_destination = open(args['output'], mode='w')
+    print('Opened output destination', args['output'])
+
+print("Type 'help' for commands")
 while(True):
     if step_mode:
         print(">", end = ' ')
@@ -272,7 +290,7 @@ while(True):
             print_state(prom, registers, ram, stack, args['text_mode'])
         if command == 'step':
             print_state(prom, registers, ram, stack, args['text_mode'])
-            run(prom, registers, ram, stack, args)
+            run(prom, registers, ram, stack, args, input_source, output_destination)
         if command == 'help':
             print("exit : quit the simulator")
             print("run : leave step mode")
@@ -285,4 +303,4 @@ while(True):
         print("Type 'help' for commands")
         step_mode = True
     else:
-        step_mode = not run(prom, registers, ram, stack, args)
+        step_mode = not run(prom, registers, ram, stack, args, input_source, output_destination)
