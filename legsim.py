@@ -7,29 +7,77 @@ Specification date: 12/24/2023
 Details TBD
 '''
 import argparse
+import keyboard
 
-def matches(num: int, mask: int) -> bool:
+def matches(num: int, pattern: int) -> bool:
     '''
     Returns whether num completely fills a specified bit mask.
     '''
-    return num & mask == mask
+    return num & pattern == pattern
 
-def read_register_or_io(index: int, registers: list) -> int:
+def read_register_or_io(index: int, registers: list, text_mode: bool):
     '''
     Read from the register or query the user for input if it is register 7.
+    If it returns None, the user has typed 'exit' and the program should halt.
     '''
     if index == 7:
         while True:
-            print("PROGRAM NEEDS INPUT BYTE:", end=" ")
+            print("INPUT :", end=" ")            
             i = input()
-            if i.isnumeric():
-                return int(i)
-            if len(i) == 1:
-                return ord(i)
-
+            if i == 'pause':
+                return None
+            if text_mode:
+                if len(i) == 1:
+                    return ord(i.encode('cp850')) 
+            elif i.isnumeric():
+                return int(i) & 0xFF
+            
     return registers[index & 0b00000111]
 
-def run(prom: list, registers: list, ram: list, stack: list) -> bool:
+def alu(left: int, right: int, opcode: int) -> int:
+    '''
+    Perform the ALU computations.
+    What happens is determined by the last four bits of opcode:
+    0000 - OR | 0001 - AND | 0010 - ADD | 0011 - SUB
+    0100 - NOT | 0101 - XOR | 0110 - MULT_HIGH | 0111 - MULT_LOW
+    1000 - LSHIFT | 1001 - RSHIFT | 1010 - LROT | 1011 - RROT
+    1100 - MOD | 1101 - DIV
+    '''
+    # TODO the rest of the math
+    match (opcode & 0b00001111):
+        case 0b0000:
+            return left | right
+        case 0b0001:
+            return left & right
+        case 0b0010:
+            return left + right
+        case 0b0011:
+            return left - right
+        case 0b0100:
+            return ~left
+        case 0b0101:
+            return left ^ right
+        case 0b0110:
+            return (left * right) & 0xFF00 >> 8
+        case 0b0111:
+            return (left * right) & 0xFF
+        case 0b1000:
+            return left << right
+        case 0b1001:
+            return left >> right
+        case 0b1010:
+            print('LROT NOT IMPLEMENTED')
+            return left # TODO LROT
+        case 0b1011:
+            print('RROT NOT IMPLEMENTED')
+            return left # TODO RROT
+        case 0b1100:
+            return left % right
+        case 0b1101:
+            return left / right
+    return left
+
+def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dict) -> bool:
     '''
     Simulate one cycle of execution.
 
@@ -48,7 +96,7 @@ def run(prom: list, registers: list, ram: list, stack: list) -> bool:
 
     'stack' is the call stack, used by CALL and RET.
 
-    The returned bool is True unless execution halted due to the HALT instruction.
+    The returned bool is True unless execution should pause due to HALT or user input
     ''' 
 
     pc = registers[6]
@@ -60,6 +108,7 @@ def run(prom: list, registers: list, ram: list, stack: list) -> bool:
 
     # Check for HALT
     if opcode == 0b11111111:
+        print("HALTED")
         return False
 
     # Define the left, right, and output busses.
@@ -75,24 +124,31 @@ def run(prom: list, registers: list, ram: list, stack: list) -> bool:
 
     if imm_left:
         left = arg1
-    elif prom_loading:
+    elif prom_loading and len(prom) > registers[5]:
         left = prom[registers[5]]
-    elif not loading:
-        left = read_register_or_io(arg1, registers)
-    elif len(ram) > registers[5]:
+    elif loading and len(ram) > registers[5]:
         left = ram[registers[5]]
-
+    elif not loading and not prom_loading:
+        left = read_register_or_io(arg1, registers, simulator_args['text_mode'])
+    
     if imm_right:
         right = arg2
     elif not loading and not prom_loading:
-        right = read_register_or_io(arg2, registers)
+        right = read_register_or_io(arg2, registers, simulator_args['text_mode'])
+
+    if left == None or right == None:
+        return False
 
     # Figure out the output bus.
-    output = alu(left, right, opcode)
+    output = alu(left, right, opcode) & 0xFF
     out_blocked = matches(opcode, 0b00100000) or (matches(opcode, 0b00010000) and not matches(opcode, 0b00001000))
     if not out_blocked:
         if arg3 == 7:
-            print(output)
+            if simulator_args['text_mode']:
+                encoded = bytes([output])
+                print(encoded.decode('cp850'), end=' ')
+            else:
+                print(output)
         else:
             registers[arg3] = output
         if arg3 == 6:
@@ -133,56 +189,100 @@ def run(prom: list, registers: list, ram: list, stack: list) -> bool:
         registers[6] += 4
     return True
 
-def alu(left: int, right: int, opcode: int) -> int:
-    '''
-    Perform the ALU computations.
-    What happens is determined by the last four bits of opcode:
-    0000 - OR | 0001 - AND | 0010 - ADD | 0011 - SUB
-    0100 - NOT | 0101 - XOR | 0110 - MULT_HIGH | 0111 - MULT_LOW
-    1000 - LSHIFT | 1001 - RSHIFT | 1010 - LROT | 1011 - RROT
-    1100 - MOD | 1101 - DIV
-    '''
-    # TODO the rest of the math
-    match (opcode & 0b00001111):
-        case 0b0000:
-            return left | right
-        case 0b0001:
-            return left & right
-        case 0b0010:
-            return left + right
-        case 0b0011:
-            return left - right
-    return left
-
 def parse_line(line: str) -> list:
     '''
     Parse one line into a list of four bytes.
     '''
-    pieces = line.split()
     bytelist = []
-    for piece_index in range(4):
-        if pieces[piece_index][0] == '#':
+    for piece in line.split():
+        if piece == '#':
             break
-        bytelist.append(int(pieces[piece_index]))
+        bytelist.append(int(piece) & 0xFF)
     return bytelist
 
+def print_ram(ram, text_mode):
+    if text_mode:
+        print("RAM:", end=' ')
+        for char in ram:
+            encoded = bytes([char])
+            print(encoded.decode('cp850'), end='')
+        print()
+    else:
+        print("RAM:", ram)
+
+def print_state(prom, registers, ram, stack, text_mode):
+    print("INST:", prom[registers[6]], prom[registers[6] + 1], prom[registers[6] + 2], prom[registers[6] + 3])
+    print("REGS:", registers)
+    print_ram(ram, text_mode)
+    print("STACK:", stack)
+
+def memedit(ram: list, text_mode: bool):
+    '''
+    Allow the user to edit RAM directly.
+    '''
+    while(True):
+        print("Type 'done' to leave the memory editor")
+        print_ram(ram, text_mode)
+        print("Address to modify:", end = ' ')
+        ui = input()
+        if(ui == 'done'):
+            return
+        try:
+            address = int(ui)
+            print('New value:', end=' ')
+            val = input()
+            try:
+                ram[address] = int(val) & 0xFF
+            except:
+                ram[address] = ord(val.encode('cp850')) 
+        except:
+            print()
+
+    
 parser = argparse.ArgumentParser("legsim.py")
 parser.add_argument('in', help="LEG text file to be run")
-parser.add_argument('-s', '--step', action='store_true', help="Pause between steps.")
+parser.add_argument('-t', '--text_mode', action='store_true', help="Treat output and RAM as characters")
 args = vars(parser.parse_args())
-
+step_mode = True
+print("Simulating", args['in'], end = ' ')
+if(args['text_mode']):
+    print('using text mode')
+else:
+    print('using int mode')
+print("Type 'help' for commands")
+prom = []
 with open(args['in']) as infile:
-    print("Simulating", args['in'])
-    prom = []
     for line in infile:
-        prom.extend(parse_line(line))
-    registers = [0, 0, 0, 0, 0, 0, 0, 0]
-    ram = []
-    stack = []
-    if args['step']:
-        print("INST:", prom[registers[6]], prom[registers[6] + 1], prom[registers[6] + 2], prom[registers[6] + 3])
-    while(run(prom, registers, ram, stack)):
-        if args['step']:
-            print("REGS:", registers, ">")
-            input()
-            print("INST:", prom[registers[6]], prom[registers[6] + 1], prom[registers[6] + 2], prom[registers[6] + 3])
+        prom.extend(parse_line(line)) 
+registers = [0, 0, 0, 0, 0, 0, 0]
+ram = []
+stack = []
+while(True):
+    if step_mode:
+        print(">", end = ' ')
+        command = input()
+        if command == 'exit':
+            break
+        if command == 'run':
+            print("Press ESC or type 'pause' at an input prompt to pause execution")
+            step_mode = False
+        if command == 'mem':
+            memedit(ram, args['text_mode'])
+        if command == 'view':
+            print_state(prom, registers, ram, stack, args['text_mode'])
+        if command == 'step':
+            print_state(prom, registers, ram, stack, args['text_mode'])
+            run(prom, registers, ram, stack, args)
+        if command == 'help':
+            print("exit : quit the simulator")
+            print("run : leave step mode")
+            print("view : show the simulation state")
+            print("step : perform one cycle of execution")
+            print("mem : open the memory editor")
+            print("help : show this list")
+
+    elif keyboard.is_pressed('escape'):
+        print("Type 'help' for commands")
+        step_mode = True
+    else:
+        step_mode = not run(prom, registers, ram, stack, args)
