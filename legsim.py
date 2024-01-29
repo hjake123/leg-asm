@@ -19,6 +19,22 @@ def matches(num: int, pattern: int) -> bool:
     '''
     return num & pattern == pattern
 
+def pattern_matches(num: int, pattern: str) -> bool:
+    '''
+    Returns whether num completely fills a specified format.
+
+    pattern is an eight character string where 'x' means any number and '0' and '1' are specific requried digits.
+    '''
+    for i in range(0, 7):
+        if pattern[7 - i] == '0':
+            if matches(num, 2**i):
+                return False
+        if pattern[7 - i] == '1':
+            if not matches(num, 2**i):
+                return False
+    return True
+
+
 def read_register_or_io(index: int, registers: list, text_mode: bool, infile = None):
     '''
     Read from the register or query the user for input if it is register 7.
@@ -175,27 +191,26 @@ def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dic
         ram[address] = output
 
     # Deal with flow control.
-    condition = matches(opcode, 0b00100000) and left == right 
-    condition = condition or matches(opcode, 0b00100001) and left != right 
-    condition = condition or matches(opcode, 0b00100010) and left < right
-    condition = condition or matches(opcode, 0b00100011) and left <= right
-    condition = condition or matches(opcode, 0b00100100) and left > right
-    condition = condition or matches(opcode, 0b00100101) and left >= right
+    condition = pattern_matches(opcode, "xx100000") and left == right 
+    condition = condition or pattern_matches(opcode, "xx00100001") and left != right 
+    condition = condition or pattern_matches(opcode, "xx100010") and left < right
+    condition = condition or pattern_matches(opcode, "xx100011") and left <= right
+    condition = condition or pattern_matches(opcode, "xx100100") and left > right
+    condition = condition or pattern_matches(opcode, "xx100101") and left >= right
     if condition:
         jumped = True
         registers[6] = arg3
 
     # Deal with functions
     if matches(opcode, 0b00100110):
-        # We're calling!
-        jumped = True
-        stack.append(registers[6])
-        registers[6] = arg3
-
-    if matches(opcode, 0b00100110):
-        # We're returning!
-        jumped = True
-        registers[6] = stack.pop()
+        if opcode % 2 == 0:
+            # We're calling!
+            jumped = True
+            stack.append(registers[6] + 4)
+            registers[6] = arg3
+        else:
+            jumped = True
+            registers[6] = stack.pop()
 
     # Increment the PC and continue if we didn't just jump (or MOVE -> pc)
     if not jumped:
