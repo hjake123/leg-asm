@@ -10,6 +10,8 @@
 /// All instructions take exactly one cycle, which is very nearly true in the game as well.
 
 use clap::Parser;
+use rust_legsim::Machine;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -24,5 +26,11 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    println!("{:?}", args);
+    let file_name = args.program;
+
+    println!("Simulating {file_name}:");
+
+    let machine = Machine::load(&file_name);
+
+    println!("{:?}", machine);
 }
