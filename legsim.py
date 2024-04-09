@@ -192,7 +192,7 @@ def run(prom: list, registers: list, ram: list, stack: list, simulator_args: dic
 
     # Deal with flow control.
     condition = pattern_matches(opcode, "xx100000") and left == right 
-    condition = condition or pattern_matches(opcode, "xx00100001") and left != right 
+    condition = condition or pattern_matches(opcode, "xx100001") and left != right 
     condition = condition or pattern_matches(opcode, "xx100010") and left < right
     condition = condition or pattern_matches(opcode, "xx100011") and left <= right
     condition = condition or pattern_matches(opcode, "xx100100") and left > right

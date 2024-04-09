@@ -25,11 +25,21 @@ impl Instruction {
         }
         let dest = Some(self.arg3);
 
-        let prom_loading = matches(0b0001_1000, self.opcode) && self.opcode % 2 == 1;
-        let ram_loading = matches(0b0001_1000, self.opcode) && self.opcode % 2 == 0;
-        let is_save = matches(0b0001_0000, self.opcode) && !matches(0b0001_1000, self.opcode);
-        let call = matches(0b0010_0110, self.opcode) && self.opcode % 2 == 0;
-        let ret = matches(0b0010_0110, self.opcode) && self.opcode % 2 == 1;
+        let prom_loading = operation_matches(0b0001_1001, self.opcode);
+        let ram_loading = operation_matches(0b0001_1000, self.opcode);
+        let is_save = operation_matches(0b0001_0000, self.opcode);
+        let call = operation_matches(0b0010_0110, self.opcode);
+        let ret = operation_matches(0b0010_0111, self.opcode);
+
+        let cond = 
+            if operation_matches(0b0010_0000, self.opcode) { Some(Condition::Equal) }
+            else if operation_matches(0b0010_0001, self.opcode) { Some(Condition::NotEqual) }
+            else if operation_matches(0b0010_0010, self.opcode) { Some(Condition::Less) }
+            else if operation_matches(0b0010_0011, self.opcode) { Some(Condition::LessEqual) }
+            else if operation_matches(0b0010_0100, self.opcode) { Some(Condition::Greater) }
+            else if operation_matches(0b0010_0101, self.opcode) { Some(Condition::GreaterEqual) }
+            else { None }
+        ;
 
         InstFlags {
             left_reg,
@@ -40,7 +50,7 @@ impl Instruction {
             is_save,
             call,
             ret,
-            ..InstFlags::new()
+            cond
         }
     }
 }
@@ -88,6 +98,10 @@ pub enum Condition {
 
 fn matches(pattern: u8, byte: u8) -> bool {
     byte & pattern == pattern
+}
+
+fn operation_matches(pattern: u8, byte: u8) -> bool {
+    (byte & 0b0011_1111) ^ pattern == 0
 }
 
 #[cfg(test)]
@@ -181,6 +195,23 @@ mod tests {
         let flags = ret_inst.decode();
         let true_flags = InstFlags {
             ret: true,
+            ..InstFlags::new()
+        };
+        assert_eq!(flags, true_flags);
+    }
+
+    #[test]
+    fn decode_be() {
+        let inst = Instruction { 
+            opcode: 96, 
+            arg1: 0, 
+            arg2: 0,
+            arg3: 0
+        };
+        let flags = inst.decode();
+        let true_flags = InstFlags {
+            cond: Some(Condition::Equal),
+            right_reg: None,
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
