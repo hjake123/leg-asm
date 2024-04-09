@@ -1,5 +1,3 @@
-use std::fs;
-
 #[derive(Debug)]
 struct RegisterBank(u8, u8, u8, u8, u8, u8, u8);
 
@@ -18,27 +16,17 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn load(program_fn: &str) -> Machine{ 
-        let program = fs::read_to_string(program_fn).expect("Couldn't read the file.");
-        
-        if program.lines().count() > 64 {
-            panic!("Program had too many lines!")
-        }
-        
+    pub fn load(program: &str) -> Machine{ 
+
         let mut prom_end = 0;
         let mut prom: [u8; 256] = [0; 256];
 
         for line in program.lines(){
-            let code = parse_line(line);
-            let code = match code {
-                Some(val) => val,
-                None => continue
-            };
-            prom[prom_end] = code.0;
-            prom[prom_end + 1] = code.1;
-            prom[prom_end + 2] = code.2;
-            prom[prom_end + 3] = code.3;
-            prom_end += 4;
+            if prom_end > 255 {
+                panic!("Program was too long to fit into prom!")
+            }
+            prom_end = parse_line(line, &mut prom, prom_end);
+            
         }
 
         Machine { 
@@ -50,15 +38,17 @@ impl Machine {
     }
 }
 
-fn parse_line(line: &str) -> Option<(u8, u8, u8, u8)> {
+fn parse_line(line: &str, prom: &mut[u8;256], prom_end: usize) -> usize {
     let tokens: Vec<&str> = line.trim().split_whitespace().collect();
     if tokens.contains(&"#"){
-        return None
+        return prom_end;
     }
-    Some((tokens[0].parse().expect("Invalid token"), 
-    tokens[1].parse().expect("Invalid token"), 
-    tokens[2].parse().expect("Invalid token"), 
-    tokens[3].parse().expect("Invalid token")))
+
+    prom[prom_end] = tokens[0].parse().expect("Invalid token");
+    prom[prom_end + 1] = tokens[1].parse().expect("Invalid token");
+    prom[prom_end + 2] = tokens[2].parse().expect("Invalid token");
+    prom[prom_end + 3] = tokens[3].parse().expect("Invalid token");
+    prom_end + 4
 }
 
 #[cfg(test)]
@@ -67,7 +57,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn missing_file(){
+    fn bad_input(){
         let _ = Machine::load("fubar");
     }
 
@@ -79,18 +69,20 @@ mod tests {
             stack: [0;256], 
             registers: RegisterBank::new()
         };
-        assert_ne!(Machine::load("../echo.out").prom, empty.prom);
+        assert_ne!(Machine::load("64 7 0 0\n64 0 0 7\n32 0 0 0").prom, empty.prom);
     }
 
     #[test]
     fn load_works(){
         let real_prom: [u8; 12] = [64, 7, 0, 0, 64, 0, 0, 7, 32, 0, 0, 0];
-        assert!(Machine::load("../echo.out").prom.starts_with(&real_prom));
+        assert!(Machine::load("64 7 0 0\n64 0 0 7\n32 0 0 0").prom.starts_with(&real_prom));
     }
 
     #[test]
     fn parse_line_works(){
         let line = "64 32 0 128";
-        assert_eq!(parse_line(line).expect("Failed to parse the ints."), (64, 32, 0, 128));
+        let mut prom = [0;256];
+        parse_line(line, &mut prom, 0);
+        assert!(prom[0] == 64);
     }
 }

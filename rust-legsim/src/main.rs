@@ -11,6 +11,7 @@
 
 use clap::Parser;
 use rust_legsim::Machine;
+use std::fs;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -30,7 +31,7 @@ fn main() {
 
     println!("Simulating {file_name}:");
 
-    let machine = Machine::load(&file_name);
+    let machine = Machine::load(&fs::read_to_string(&file_name).expect("Couldn't read the file."));
 
     println!("{:?}", machine);
 }
