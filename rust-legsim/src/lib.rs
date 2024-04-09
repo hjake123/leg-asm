@@ -1,9 +1,12 @@
+mod processor;
+mod decoder;
+
 #[derive(Debug)]
-struct RegisterBank(u8, u8, u8, u8, u8, u8, u8);
+struct RegisterBank(u8, u8, u8, u8, u8, u8, u8, u8);
 
 impl RegisterBank{
     pub fn new() -> RegisterBank{
-        RegisterBank(0, 0, 0, 0, 0, 0, 0)
+        RegisterBank(0, 0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -16,6 +19,7 @@ pub struct Machine {
 }
 
 impl Machine {
+    // Load a program into the machine's PROM
     pub fn load(program: &str) -> Machine{ 
 
         let mut prom_end = 0;
@@ -35,6 +39,28 @@ impl Machine {
             stack: [0;256], 
             registers: RegisterBank::new()
         }
+    }
+
+    // Simulate one cycle of execution. Returns true unless HALT runs.
+    pub fn cycle(&mut self) -> bool {
+        let pc: usize = self.registers.6.into();
+        let inst = decoder::Instruction {
+            opcode: self.prom[pc],
+            arg1: self.prom[pc + 1],
+            arg2: self.prom[pc + 2],
+            arg3: self.prom[pc + 3]
+        };
+
+        if inst.opcode == 255 {
+            // HALT opcode
+            return false
+        }
+
+        let flags = inst.decode();
+        println!("{:?}", flags);
+        
+        self.registers.6 = self.registers.6.wrapping_add(4);
+        true
     }
 }
 

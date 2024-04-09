@@ -31,7 +31,9 @@ fn main() {
 
     println!("Simulating {file_name}:");
 
-    let machine = Machine::load(&fs::read_to_string(&file_name).expect("Couldn't read the file."));
+    let mut machine = Machine::load(&fs::read_to_string(&file_name).expect("Couldn't read the file."));
 
-    println!("{:?}", machine);
+    while machine.cycle() {}
+
+    println!("Halted.")
 }
