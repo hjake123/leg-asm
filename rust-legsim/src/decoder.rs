@@ -42,6 +42,7 @@ impl Instruction {
         ;
 
         InstFlags {
+            alu: AluOperation::decode(self.opcode),
             left_reg,
             right_reg,
             dest,
@@ -55,9 +56,13 @@ impl Instruction {
     }
 }
 
+use crate::processor::alu::AluOperation;
+use crate::processor::branch::Condition;
+
 #[derive(Debug)]
 #[derive(PartialEq)]
 pub struct InstFlags {
+    pub alu: Option<AluOperation>,
     pub ram_loading: bool,
     pub prom_loading: bool,
     pub is_save: bool,
@@ -72,6 +77,7 @@ pub struct InstFlags {
 impl InstFlags {
     pub fn new() -> InstFlags {
         InstFlags {
+            alu: None,
             ram_loading: false,
             prom_loading: false,
             is_save: false,
@@ -83,17 +89,6 @@ impl InstFlags {
             dest: Some(0)
         }
     }
-}
-
-#[derive(Debug)]
-#[derive(PartialEq)]
-pub enum Condition {
-    Equal,
-    NotEqual, 
-    Less,
-    Greater,
-    LessEqual,
-    GreaterEqual
 }
 
 fn matches(pattern: u8, byte: u8) -> bool {
@@ -118,6 +113,7 @@ mod tests {
         };
         let flags = inst.decode();
         let true_flags = InstFlags {
+            alu: Some(AluOperation::Or),
             left_reg: Some(7),
             right_reg: None,
             dest: Some(1),
@@ -211,6 +207,23 @@ mod tests {
         let flags = inst.decode();
         let true_flags = InstFlags {
             cond: Some(Condition::Equal),
+            right_reg: None,
+            ..InstFlags::new()
+        };
+        assert_eq!(flags, true_flags);
+    }
+
+    #[test]
+    fn decode_sub() {
+        let inst = Instruction { 
+            opcode: 67, 
+            arg1: 0, 
+            arg2: 1,
+            arg3: 0
+        };
+        let flags = inst.decode();
+        let true_flags = InstFlags {
+            alu: Some(AluOperation::Sub),
             right_reg: None,
             ..InstFlags::new()
         };
