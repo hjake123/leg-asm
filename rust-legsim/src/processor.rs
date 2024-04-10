@@ -2,7 +2,12 @@ use crate::{decoder::InstFlags, Machine};
 
 use self::branch::try_branch;
 
-pub fn execute(flags: InstFlags, machine: &mut Machine) {
+pub fn execute(flags: &InstFlags, machine: &mut Machine) {
+    if flags.ret {
+        fun::ret(machine);
+        return
+    }
+
     let left = if flags.left.1 { machine.registers[flags.left.0] } else { flags.left.0 };
     let right = if flags.right.1 { machine.registers[flags.right.0] } else { flags.right.0 };
 
@@ -12,20 +17,17 @@ pub fn execute(flags: InstFlags, machine: &mut Machine) {
         } else if flags.ram_loading {
             Some(mem::load(machine))
         } else {
-            alu::execute(flags.alu_op, left, right)
+            alu::execute(&flags.alu_op, left, right)
         };
-
 
     match flags.dest {
         Some(dest) => {
             // Dest is present for branches, so try to take a branch to dest.
-            try_branch(flags.cond, left, right, dest, machine);
+            try_branch(&flags.cond, left, right, dest, machine);
 
             // Dest is present for function calls, so check for those.
             if flags.call {
                 fun::call(dest, machine);
-            } else if flags.ret {
-                fun::ret(dest, machine);
             }
 
             // If we have an output, save it to mem[addr] or register[dest].
@@ -48,7 +50,7 @@ mod alu {
     use crate::decoder::AluOperation;
     use std::ops::Not;
 
-    pub fn execute(op: Option<AluOperation>, left: u8, right: u8) -> Option<u8> {
+    pub fn execute(op: &Option<AluOperation>, left: u8, right: u8) -> Option<u8> {
         match op{
             Some(operation) => Some(match operation {
                 AluOperation::Or => left | right,
@@ -70,10 +72,10 @@ mod alu {
 mod branch {
     use crate::{decoder::Condition, Machine, PC};
 
-    pub fn try_branch(maybe_cond: Option<Condition>, left: u8, right: u8, dest: u8, machine: &mut Machine) {
+    pub fn try_branch(maybe_cond: &Option<Condition>, left: u8, right: u8, dest: u8, machine: &mut Machine) {
         match maybe_cond{
             Some(cond) => {
-                let cond_met = compare(cond, left, right);
+                let cond_met = compare(&cond, left, right);
                 if cond_met {
                     machine.registers[PC] = dest;
                 }
@@ -82,7 +84,7 @@ mod branch {
         }
     }
 
-    fn compare(cond: Condition, left: u8, right: u8) -> bool {
+    fn compare(cond: &Condition, left: u8, right: u8) -> bool {
         match cond {
             Condition::Equal => left == right,
             Condition::NotEqual => left != right,
@@ -122,7 +124,7 @@ mod fun {
         machine.registers[PC] = addr;
     }
 
-    pub fn ret(addr: u8, machine: &mut Machine) {
+    pub fn ret(machine: &mut Machine) {
         machine.registers[PC] =  machine.stack.pop();
     }
 }
@@ -135,14 +137,14 @@ mod tests {
 
     #[test]
     fn add_exe() {
-        assert_eq!(alu::execute(Some(AluOperation::Add), 2, 2), Some(4));
+        assert_eq!(alu::execute(&Some(AluOperation::Add), 2, 2), Some(4));
     }
 
     #[test]
     fn branch_exe() {
         let mut machine = Machine::load("0 0 0 0");
         machine.registers[PC] = 4;
-        try_branch(Some(crate::decoder::Condition::Equal), 1, 1, 0, &mut machine);
+        try_branch(&Some(crate::decoder::Condition::Equal), 1, 1, 0, &mut machine);
         assert_eq!(machine.registers[PC], 0);
     }
 

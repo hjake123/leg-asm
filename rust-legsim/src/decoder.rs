@@ -1,3 +1,5 @@
+use crate::PC;
+
 #[derive(Debug)]
 pub struct Instruction {
     pub opcode: u8,
@@ -42,8 +44,12 @@ impl Instruction {
 
         let dest = if save || call || ret { None } else { Some(self.arg3) };
 
+        let alu_op = AluOperation::decode(self.opcode);
+
+        let jumped = call || ret || cond.is_some() || (alu_op.is_some() || ram_loading || prom_loading) && dest == Some(PC);
+
         InstFlags {
-            alu_op: AluOperation::decode(self.opcode),
+            alu_op,
             left,
             right,
             dest,
@@ -52,7 +58,8 @@ impl Instruction {
             save,
             call,
             ret,
-            cond
+            cond,
+            jumped
         }
     }
 }
@@ -69,7 +76,8 @@ pub struct InstFlags {
     pub cond: Option<Condition>,
     pub left: (u8, bool), // (val, is_immediate)
     pub right: (u8, bool), // (val, is_immediate)
-    pub dest: Option<u8>
+    pub dest: Option<u8>,
+    pub jumped: bool
 }
 
 impl InstFlags {
@@ -84,7 +92,8 @@ impl InstFlags {
             cond: None,
             left: (0, false),
             right: (0, false),
-            dest: None
+            dest: None,
+            jumped: false
         }
     }
 }
@@ -229,6 +238,7 @@ mod tests {
         let flags = call_inst.decode();
         let true_flags = InstFlags {
             call: true,
+            jumped: true,
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -236,6 +246,7 @@ mod tests {
         let flags = ret_inst.decode();
         let true_flags = InstFlags {
             ret: true,
+            jumped: true,
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -254,6 +265,7 @@ mod tests {
             cond: Some(Condition::Equal),
             right: (0, true),
             dest: Some(0),
+            jumped: true,
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);

@@ -103,9 +103,11 @@ impl Machine {
 
         let flags = inst.decode();
         
-        processor::execute(flags, self);
+        processor::execute(&flags, self);
 
-        self.registers[PC] = self.registers[PC].wrapping_add(4); // TODO: don't advance sometimes.
+        if !flags.jumped {
+            self.registers[PC] = self.registers[PC].wrapping_add(4); // TODO: don't advance sometimes.
+        }
         
         true
     }
