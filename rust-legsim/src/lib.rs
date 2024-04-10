@@ -1,22 +1,68 @@
 mod processor;
 mod decoder;
 
-#[derive(Debug)]
-struct RegisterBank(u8, u8, u8, u8, u8, u8, u8, u8);
-
-impl RegisterBank{
-    pub fn new() -> RegisterBank{
-        RegisterBank(0, 0, 0, 0, 0, 0, 0, 0)
-    }
-}
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug)]
 pub struct Machine {
     prom: [u8; 256],
     memory: [u8; 256],
-    stack: [u8; 256],
+    stack: Stack,
     registers: RegisterBank
 }
+
+#[derive(Debug)]
+struct RegisterBank { reg: [u8; 8] }
+
+const ADDR: u8 = 5;
+const PC: u8 = 6;
+const IO: u8 = 7;
+
+impl RegisterBank {
+    pub fn new() -> RegisterBank {
+        RegisterBank { reg: [0; 8] }
+    }
+}
+
+// Indexing the RegisterBank returns its registers!
+impl Index<u8> for RegisterBank {
+    type Output = u8;
+
+    fn index(&self, index: u8) -> &Self::Output {
+        let index: usize = index.into();
+        &self.reg[index]
+    }
+}
+
+impl IndexMut<u8> for RegisterBank {
+    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
+        let index: usize = index.into();
+        &mut self.reg[index]
+    }
+}
+
+#[derive(Debug)]
+pub struct Stack {
+    stack: [u8; 256],
+    stack_ptr: u8
+}
+
+impl Stack {
+    pub fn new() -> Stack {
+        Stack { stack: [0; 256], stack_ptr: 0 }
+    }
+
+    pub fn push(&mut self, val: u8) {
+        let ptr: usize = self.stack_ptr.into();
+        self.stack[ptr] = val;
+        self.stack_ptr += 1;
+    }
+
+    pub fn pop(&mut self) -> u8 {
+        self.stack_ptr -= 1;
+        let ptr: usize = self.stack_ptr.into();
+        self.stack[ptr]
+    }}
 
 impl Machine {
     // Load a program into the machine's PROM
@@ -30,20 +76,19 @@ impl Machine {
                 panic!("Program was too long to fit into prom!")
             }
             prom_end = parse_line(line, &mut prom, prom_end);
-            
         }
 
         Machine { 
             prom, 
             memory: [0;256], 
-            stack: [0;256], 
+            stack: Stack::new(), 
             registers: RegisterBank::new()
         }
     }
 
     // Simulate one cycle of execution. Returns true unless HALT runs.
     pub fn cycle(&mut self) -> bool {
-        let pc: usize = self.registers.6.into();
+        let pc: usize = self.registers[PC].into();
         let inst = decoder::Instruction {
             opcode: self.prom[pc],
             arg1: self.prom[pc + 1],
@@ -57,11 +102,14 @@ impl Machine {
         }
 
         let flags = inst.decode();
-        println!("{:?}", flags);
         
-        self.registers.6 = self.registers.6.wrapping_add(4);
+        processor::execute(flags, self);
+
+        self.registers[PC] = self.registers[PC].wrapping_add(4); // TODO: don't advance sometimes.
+        
         true
     }
+
 }
 
 fn parse_line(line: &str, prom: &mut[u8;256], prom_end: usize) -> usize {
@@ -92,7 +140,7 @@ mod tests {
         let empty = Machine { 
             prom: [0;256], 
             memory: [0;256], 
-            stack: [0;256], 
+            stack: Stack::new(), 
             registers: RegisterBank::new()
         };
         assert_ne!(Machine::load("64 7 0 0\n64 0 0 7\n32 0 0 0").prom, empty.prom);
@@ -110,5 +158,14 @@ mod tests {
         let mut prom = [0;256];
         parse_line(line, &mut prom, 0);
         assert!(prom[0] == 64);
+    }
+
+    #[test]
+    fn stack_test(){
+        let mut stack = Stack::new();
+        stack.push(20);
+        stack.push(10);
+        assert_eq!(stack.pop(), 10);
+        assert_eq!(stack.pop(), 20);
     }
 }

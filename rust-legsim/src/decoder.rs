@@ -8,26 +8,25 @@ pub struct Instruction {
 
 impl Instruction {
     pub fn decode(&self) -> InstFlags {
-        let mut left_reg = None;
-        let mut right_reg = None;
+        let left;
+        let right;
 
         if matches(0b1000_0000, self.opcode) {
-            left_reg = None;
+            left = (self.arg1, true);
         } else {
-            left_reg = Some(self.arg1);
+            left = (self.arg1, false);
             
         }
 
         if matches(0b0100_0000, self.opcode) {
-            right_reg = None;
+            right = (self.arg2, true);
         } else {
-            right_reg = Some(self.arg2);
+            right = (self.arg2, false);
         }
-        let dest = Some(self.arg3);
 
         let prom_loading = operation_matches(0b0001_1001, self.opcode);
         let ram_loading = operation_matches(0b0001_1000, self.opcode);
-        let is_save = operation_matches(0b0001_0000, self.opcode);
+        let save = operation_matches(0b0001_0000, self.opcode);
         let call = operation_matches(0b0010_0110, self.opcode);
         let ret = operation_matches(0b0010_0111, self.opcode);
 
@@ -41,14 +40,16 @@ impl Instruction {
             else { None }
         ;
 
+        let dest = if save || call || ret { None } else { Some(self.arg3) };
+
         InstFlags {
-            alu: AluOperation::decode(self.opcode),
-            left_reg,
-            right_reg,
+            alu_op: AluOperation::decode(self.opcode),
+            left,
+            right,
             dest,
             prom_loading,
             ram_loading,
-            is_save,
+            save,
             call,
             ret,
             cond
@@ -56,37 +57,79 @@ impl Instruction {
     }
 }
 
-use crate::processor::alu::AluOperation;
-use crate::processor::branch::Condition;
-
 #[derive(Debug)]
 #[derive(PartialEq)]
 pub struct InstFlags {
-    pub alu: Option<AluOperation>,
+    pub alu_op: Option<AluOperation>,
     pub ram_loading: bool,
     pub prom_loading: bool,
-    pub is_save: bool,
+    pub save: bool,
     pub call: bool,
     pub ret: bool,
     pub cond: Option<Condition>,
-    pub left_reg: Option<u8>,
-    pub right_reg: Option<u8>,
+    pub left: (u8, bool), // (val, is_immediate)
+    pub right: (u8, bool), // (val, is_immediate)
     pub dest: Option<u8>
 }
 
 impl InstFlags {
     pub fn new() -> InstFlags {
         InstFlags {
-            alu: None,
+            alu_op: None,
             ram_loading: false,
             prom_loading: false,
-            is_save: false,
+            save: false,
             call: false,
             ret: false,
             cond: None,
-            left_reg: Some(0),
-            right_reg: Some(0),
-            dest: Some(0)
+            left: (0, false),
+            right: (0, false),
+            dest: None
+        }
+    }
+}
+
+#[derive(Debug)]
+#[derive(PartialEq)]
+pub enum Condition {
+    Equal,
+    NotEqual, 
+    Less,
+    Greater,
+    LessEqual,
+    GreaterEqual
+}
+
+#[derive(Debug)]
+#[derive(PartialEq)]
+pub enum AluOperation {
+    Or,
+    And,
+    Add,
+    Sub,
+    Not,
+    Xor,
+    LeftShift,
+    RightShift,
+    Mod,
+    Div
+}
+
+impl AluOperation{
+    pub fn decode(opcode: u8) -> Option<AluOperation> {
+        let opcode = opcode & 0b0011_1111;
+        match opcode {
+            0b0 => Some(AluOperation::Or),
+            0b1 => Some(AluOperation::And),
+            0b10 => Some(AluOperation::Add),
+            0b11 => Some(AluOperation::Sub),
+            0b100 => Some(AluOperation::Not),
+            0b101 => Some(AluOperation::Xor),
+            0b1000 => Some(AluOperation::LeftShift),
+            0b1001 => Some(AluOperation::RightShift),
+            0b1100 => Some(AluOperation::Mod),
+            0b1101 => Some(AluOperation::Div),
+            _ => None
         }
     }
 }
@@ -113,9 +156,9 @@ mod tests {
         };
         let flags = inst.decode();
         let true_flags = InstFlags {
-            alu: Some(AluOperation::Or),
-            left_reg: Some(7),
-            right_reg: None,
+            alu_op: Some(AluOperation::Or),
+            left: (7, false),
+            right: (0, true),
             dest: Some(1),
             ..InstFlags::new()
         };
@@ -139,6 +182,7 @@ mod tests {
         let flags = load_inst.decode();
         let true_flags = InstFlags {
             ram_loading: true,
+            dest: Some(0),
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -146,6 +190,7 @@ mod tests {
         let flags = prom_inst.decode();
         let true_flags = InstFlags {
             prom_loading: true,
+            dest: Some(0),
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -161,7 +206,7 @@ mod tests {
         };
         let flags = inst.decode();
         let true_flags = InstFlags {
-            is_save: true,
+            save: true,
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -207,7 +252,8 @@ mod tests {
         let flags = inst.decode();
         let true_flags = InstFlags {
             cond: Some(Condition::Equal),
-            right_reg: None,
+            right: (0, true),
+            dest: Some(0),
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -223,8 +269,9 @@ mod tests {
         };
         let flags = inst.decode();
         let true_flags = InstFlags {
-            alu: Some(AluOperation::Sub),
-            right_reg: None,
+            alu_op: Some(AluOperation::Sub),
+            right: (1, true),
+            dest: Some(0),
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
