@@ -8,8 +8,8 @@ pub fn execute(flags: &InstFlags, machine: &mut Machine) {
         return
     }
 
-    let left = if flags.left.1 { machine.registers[flags.left.0] } else { flags.left.0 };
-    let right = if flags.right.1 { machine.registers[flags.right.0] } else { flags.right.0 };
+    let left = if flags.left.1 { flags.left.0  } else { machine.registers[flags.left.0] };
+    let right = if flags.right.1 { flags.right.0  } else { machine.registers[flags.right.0] };
 
     let output = 
         if flags.prom_loading {
@@ -55,8 +55,8 @@ mod alu {
             Some(operation) => Some(match operation {
                 AluOperation::Or => left | right,
                 AluOperation::And => left & right,
-                AluOperation::Add => left + right,
-                AluOperation::Sub => left - right,
+                AluOperation::Add => left.wrapping_add(right),
+                AluOperation::Sub => left.wrapping_sub(right),
                 AluOperation::Not => left.not(),
                 AluOperation::Xor => left ^ right,
                 AluOperation::LeftShift => left << right,
@@ -161,5 +161,69 @@ mod tests {
         machine.registers[ADDR] = 1;
         mem::save(42, &mut machine);
         assert_eq!(mem::load(&machine), 42);
+    }
+
+    #[test]
+    fn imm_mov_exe() {
+        let mut machine = Machine::load("0 0 0 0");
+        let flags = InstFlags::new();
+        let flags = InstFlags {
+            alu_op: Some(AluOperation::Or),
+            left: (1, true),
+            dest: Some(0),
+            ..flags
+        };
+        execute(&flags, &mut machine);
+        assert_eq!(machine.registers[0], 1);
+    }
+
+    #[test]
+    fn imm_mov_another_dest_exe() {
+        let mut machine = Machine::load("0 0 0 0");
+        let flags = InstFlags::new();
+        let flags = InstFlags {
+            alu_op: Some(AluOperation::Or),
+            left: (1, true),
+            dest: Some(4),
+            ..flags
+        };
+        execute(&flags, &mut machine);
+        assert_eq!(machine.registers[4], 1);
+    }
+
+    #[test]
+    fn call_exe() {
+        let mut machine = Machine::load("0 0 0 0");
+        let flags = InstFlags::new();
+        let flags = InstFlags {
+            call: true,
+            dest: Some(42),
+            ..flags
+        };
+        execute(&flags, &mut machine);
+        assert_eq!(machine.registers[PC], 42);
+    }
+
+    #[test]
+    fn ret_exe() {
+        let mut machine = Machine::load("0 0 0 0");
+        machine.registers[PC] = 32;
+        let flags = InstFlags::new();
+        let flags = InstFlags {
+            call: true,
+            jumped: true,
+            dest: Some(64),
+            ..flags
+        };
+        execute(&flags, &mut machine);
+        assert_eq!(machine.registers[PC], 64);
+        let flags = InstFlags::new();
+        let flags = InstFlags {
+            ret: true,
+            jumped: false,
+            ..flags
+        };
+        execute(&flags, &mut machine);
+        assert_eq!(machine.registers[PC], 32);
     }
 }

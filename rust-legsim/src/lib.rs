@@ -1,7 +1,7 @@
 mod processor;
 mod decoder;
 
-use std::ops::{Index, IndexMut};
+use std::{fmt, ops::{Index, IndexMut}};
 
 #[derive(Debug)]
 pub struct Machine {
@@ -38,6 +38,12 @@ impl IndexMut<u8> for RegisterBank {
     fn index_mut(&mut self, index: u8) -> &mut Self::Output {
         let index: usize = index.into();
         &mut self.reg[index]
+    }
+}
+
+impl fmt::Display for RegisterBank {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({:?})", self.reg)
     }
 }
 
@@ -111,7 +117,14 @@ impl Machine {
         
         true
     }
+}
 
+impl fmt::Display for Machine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let pc: usize = self.registers[PC].into();
+
+        write!(f, "(Opcode {} -> {})", self.prom[pc], self.registers)
+    }
 }
 
 fn parse_line(line: &str, prom: &mut[u8;256], prom_end: usize) -> usize {
@@ -169,5 +182,23 @@ mod tests {
         stack.push(10);
         assert_eq!(stack.pop(), 10);
         assert_eq!(stack.pop(), 20);
+    }
+
+    #[test]
+    fn imm_add_prog() {
+        let mut machine = Machine::load("192 1 0 0 \n192 1 0 1\n2 0 1 0");
+        machine.cycle();
+        machine.cycle();
+        machine.cycle();
+        println!("{:?}", machine.registers);
+        assert_eq!(machine.registers[0], 2);
+    }
+
+    #[test]
+    fn call_ret_prog() {
+        let mut machine = Machine::load("38 0 0 8\n255 0 0 0\n192 100 0 0\n39 0 0 0");
+        while machine.cycle() {}
+        println!("{:?}", machine.registers);
+        assert_eq!(machine.registers[0], 100);
     }
 }

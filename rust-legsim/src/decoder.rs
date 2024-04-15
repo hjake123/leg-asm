@@ -42,11 +42,11 @@ impl Instruction {
             else { None }
         ;
 
-        let dest = if save || call || ret { None } else { Some(self.arg3) };
+        let dest = if save || ret { None } else { Some(self.arg3) };
 
         let alu_op = AluOperation::decode(self.opcode);
 
-        let jumped = call || ret || cond.is_some() || (alu_op.is_some() || ram_loading || prom_loading) && dest == Some(PC);
+        let jumped = call || cond.is_some() || (alu_op.is_some() || ram_loading || prom_loading) && dest == Some(PC);
 
         InstFlags {
             alu_op,
@@ -239,6 +239,7 @@ mod tests {
         let true_flags = InstFlags {
             call: true,
             jumped: true,
+            dest: Some(0),
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);
@@ -246,7 +247,7 @@ mod tests {
         let flags = ret_inst.decode();
         let true_flags = InstFlags {
             ret: true,
-            jumped: true,
+            jumped: false,
             ..InstFlags::new()
         };
         assert_eq!(flags, true_flags);

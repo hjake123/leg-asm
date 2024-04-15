@@ -12,6 +12,7 @@
 use clap::Parser;
 use rust_legsim::Machine;
 use std::fs;
+use std::io;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -19,9 +20,9 @@ struct Args {
     /// The program file name to run.
     program: String,
 
-    /// Whether to run in 'text mode'.
+    /// Whether to show debug output each cycle.
     #[arg(short, long)]
-    text_mode: bool
+    debug: bool
 }
 
 fn main() {
@@ -33,7 +34,19 @@ fn main() {
 
     let mut machine = Machine::load(&fs::read_to_string(&file_name).expect("Couldn't read the file."));
 
-    while machine.cycle() {}
+    if args.debug {
+        println!("{machine}");
+        let mut _buf = String::new();
+        let _ = io::stdin().read_line(&mut _buf);
+    }
+
+    while machine.cycle() {
+        if args.debug {
+            println!("{machine}");
+            let mut _buf = String::new();
+            let _ = io::stdin().read_line(&mut _buf);
+        }
+    }
 
     println!("Halted.")
 }
