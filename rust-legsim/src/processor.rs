@@ -1,4 +1,6 @@
-use crate::{decoder::InstFlags, Machine};
+use std::io::{self, BufRead, Read, Write};
+
+use crate::{decoder::InstFlags, Machine, IO};
 
 use self::branch::try_branch;
 
@@ -8,8 +10,8 @@ pub fn execute(flags: &InstFlags, machine: &mut Machine) {
         return
     }
 
-    let left = if flags.left.1 { flags.left.0  } else { machine.registers[flags.left.0] };
-    let right = if flags.right.1 { flags.right.0  } else { machine.registers[flags.right.0] };
+    let left = if flags.left.1 { flags.left.0  } else if flags.left.0 == IO { get_user_input() } else { machine.registers[flags.left.0] };
+    let right = if flags.right.1 { flags.right.0  } else if flags.left.0 == IO { get_user_input() } else { machine.registers[flags.right.0] };
 
     let output = 
         if flags.prom_loading {
@@ -35,6 +37,8 @@ pub fn execute(flags: &InstFlags, machine: &mut Machine) {
                 Some(val) => {
                     if flags.save {
                         mem::save(val, machine);
+                    } else if dest == IO {
+                        print!("{} ", val);
                     } else {
                         machine.registers[dest] = val;
                     }
@@ -43,6 +47,22 @@ pub fn execute(flags: &InstFlags, machine: &mut Machine) {
             }
         },
         None => ()
+    }
+}
+
+fn get_user_input() -> u8 {
+    print!("\n> ");
+    let _ = io::stdout().flush();
+    let result = io::stdin().lock().lines().next();
+    match result {
+        Some(Ok(val)) => {
+            match val.parse() {
+                Ok(parsed_val) => parsed_val,
+                Err(_) => { eprintln!("{val} is not a byte! Using 0"); 0 },
+            }
+        },
+        Some(Err(err)) => { eprintln!("Tried to read standard input but {err}"); 0 },
+        None => { eprintln!("Tried to read standard input but it was empty!"); 0 },
     }
 }
 
@@ -56,7 +76,7 @@ mod alu {
                 AluOperation::Or => left | right,
                 AluOperation::And => left & right,
                 AluOperation::Add => left.wrapping_add(right),
-                AluOperation::Sub => left.wrapping_sub(right),
+                AluOperation::Sub => left - right,
                 AluOperation::Not => left.not(),
                 AluOperation::Xor => left ^ right,
                 AluOperation::LeftShift => left << right,
@@ -78,6 +98,9 @@ mod branch {
                 let cond_met = compare(&cond, left, right);
                 if cond_met {
                     machine.registers[PC] = dest;
+                } else {
+                    // Since this is a potentially jumping instruction, we have to advance manually...
+                    machine.registers[PC] += 4; 
                 }
             },
             None => { return; }
@@ -146,6 +169,14 @@ mod tests {
         machine.registers[PC] = 4;
         try_branch(&Some(crate::decoder::Condition::Equal), 1, 1, 0, &mut machine);
         assert_eq!(machine.registers[PC], 0);
+    }
+
+    #[test]
+    fn dont_branch_exe() {
+        let mut machine = Machine::load("0 0 0 0");
+        machine.registers[PC] = 4;
+        try_branch(&Some(crate::decoder::Condition::NotEqual), 1, 1, 0, &mut machine);
+        assert_ne!(machine.registers[PC], 0);
     }
 
     #[test]

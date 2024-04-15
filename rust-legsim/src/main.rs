@@ -13,6 +13,7 @@ use clap::Parser;
 use rust_legsim::Machine;
 use std::fs;
 use std::io;
+use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,6 +42,7 @@ fn main() {
     }
 
     while machine.cycle() {
+        let _ = io::stdout().flush();
         if args.debug {
             println!("{machine}");
             let mut _buf = String::new();
