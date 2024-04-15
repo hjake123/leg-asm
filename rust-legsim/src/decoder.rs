@@ -81,6 +81,7 @@ pub struct InstFlags {
 }
 
 impl InstFlags {
+    #[allow(dead_code)] // Not actually dead because it is used in tests!
     pub fn new() -> InstFlags {
         InstFlags {
             alu_op: None,

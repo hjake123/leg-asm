@@ -129,7 +129,8 @@ impl fmt::Display for Machine {
 
 fn parse_line(line: &str, prom: &mut[u8;256], prom_end: usize) -> usize {
     let tokens: Vec<&str> = line.trim().split_whitespace().collect();
-    if tokens.contains(&"#"){
+    let hash_pos = tokens.iter().position(|&item| item == "#").unwrap_or(usize::MAX);
+    if hash_pos == 0 {
         return prom_end;
     }
 
@@ -175,6 +176,30 @@ mod tests {
         assert!(prom[0] == 64);
     }
 
+    #[test]
+    fn parse_line_valid_comment(){
+        let line = "64 32 0 128 # awoo";
+        let mut prom = [0;256];
+        parse_line(line, &mut prom, 0);
+        assert!(prom[0] == 64);
+    }
+
+    #[test]
+    fn parse_line_full_line_comment(){
+        let line = "# 64 32 0 34 awoo";
+        let mut prom = [0;256];
+        parse_line(line, &mut prom, 0);
+        assert!(prom[0] == 0);
+    }
+    
+    #[test]
+    #[should_panic]
+    fn parse_line_invalid_comment(){
+        let line = "64 # awoo";
+        let mut prom = [0;256];
+        parse_line(line, &mut prom, 0);
+    }
+    
     #[test]
     fn stack_test(){
         let mut stack = Stack::new();
